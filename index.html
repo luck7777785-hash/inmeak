@@ -127,6 +127,8 @@ section.detail{border-left:1px solid var(--line);background:var(--surface);overf
 .dactions{display:flex;gap:6px;margin:14px 0 4px;flex-wrap:wrap}
 dl.facts{display:grid;grid-template-columns:96px 1fr;gap:8px 12px;margin:16px 0;font-size:14px}
 dl.facts dt{color:var(--muted)}
+.ddbtns{display:flex;gap:6px;margin-top:6px}
+.ddbtns .btn{text-decoration:none;color:var(--ink)}
 dl.facts dd{margin:0;word-break:break-word;white-space:pre-wrap}
 .dsec{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
 .dsec h4{margin:0 0 10px;font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.02em}
@@ -239,7 +241,7 @@ header.top{padding-top:max(12px,env(safe-area-inset-top))}
             <button class="btn sm danger" type="button" id="f_photoDel" hidden>사진 빼기</button>
           </div></div></div>
       <div class="f"><label for="f_name">이름 *</label><input id="f_name" name="name" required></div>
-      <div class="f"><label for="f_birthYear">출생연도</label><input id="f_birthYear" name="birthYear" inputmode="numeric" placeholder="예: 1982 또는 82"></div>
+      <div class="f"><label for="f_birthYear">출생연도</label><input id="f_birthYear" name="birthYear" inputmode="numeric" placeholder="예: 1982, 82, 1982-03-15"></div>
       <div class="f full"><label>어디서 아는 사람인가요? (여러 개 선택 가능)</label><div class="groupPick" id="f_groups"></div></div>
 
       <div class="fieldset-title">직장 · 학력</div>
@@ -253,6 +255,8 @@ header.top{padding-top:max(12px,env(safe-area-inset-top))}
       <div class="f"><label for="f_phone">휴대폰</label><input id="f_phone" name="phone" inputmode="tel" placeholder="010-0000-0000"></div>
       <div class="f"><label for="f_email">이메일</label><input id="f_email" name="email" type="email"></div>
       <div class="f"><label for="f_birthday">생일 (월-일)</label><input id="f_birthday" name="birthday" placeholder="예: 03-15"></div>
+      <div class="f full"><label for="f_address">주소</label><input id="f_address" name="address" placeholder="예: 서울시 성동구 왕십리로 222"></div>
+      <div class="f full"><label for="f_account">계좌번호</label><input id="f_account" name="account" placeholder="예: 국민 123456-78-901234 (예금주 홍길동)"></div>
       <div class="f"><label for="f_tags">태그 (쉼표로 구분)</label><input id="f_tags" name="tags" placeholder="예: CT, 골프, 논문 공저"></div>
 
       <div class="fieldset-title">관계</div>
@@ -285,7 +289,7 @@ header.top{padding-top:max(12px,env(safe-area-inset-top))}
     </div>
     <div class="dsec">
       <h4>복원 · 가져오기</h4>
-      <p class="hint" style="margin-bottom:8px"><b>백업 파일(.json)</b>을 고르면 연락 기록까지 그대로 복원되고, <b>엑셀 명단(.csv)</b>을 고르면 사람을 추가합니다. CSV 첫 줄 머리글: 이름, 분류, 직장, 직책, 출신학교, 학번, 출생연도, 휴대폰, 이메일, 생일, 만난곳, 만난날, 수강, 태그, 메모.</p>
+      <p class="hint" style="margin-bottom:8px"><b>백업 파일(.json)</b>을 고르면 연락 기록까지 그대로 복원되고, <b>엑셀 명단(.csv)</b>을 고르면 사람을 추가합니다. 이름과 휴대폰이 같은 사람이 이미 있으면 새로 만들지 않고 정보를 채워 넣습니다. CSV 첫 줄 머리글: 이름, 분류, 직장, 직책, 출신학교, 학번, 출생연도, 휴대폰, 이메일, 주소, 계좌번호, 생일, 만난곳, 만난날, 수강, 태그, 메모.</p>
       <input type="file" id="csvFile" accept=".csv,.json,text/csv,application/json">
       <p id="importMsg" class="hint" style="margin-top:8px"></p>
     </div>
@@ -322,8 +326,13 @@ let meta={lastBackup:""};
 let state={filter:"all",q:"",sort:"name",groupBy:"none",sel:null,editing:null,confirmDel:false};
 
 /* ---------- 나이 ---------- */
+function parseFullDate(v){
+  const m=/^\s*((?:19|20)\d{2})[-./년\s]+(\d{1,2})[-./월\s]+(\d{1,2})/.exec(String(v||""));
+  return m?{y:+m[1],md:String(+m[2]).padStart(2,"0")+"-"+String(+m[3]).padStart(2,"0")}:null;
+}
 function normYear(v){
   if(v==null||v==="")return null;
+  const fd=parseFullDate(v); if(fd)return fd.y;
   let n=parseInt(String(v).replace(/[^0-9]/g,""),10);
   if(isNaN(n))return null;
   if(n<100){const cy=new Date().getFullYear()%100;n=n>cy?1900+n:2000+n;}
@@ -368,7 +377,7 @@ function colorFor(p){const g=(p.groups||[])[0];return GMAP[g]?.color||"#6c7680"}
 function matchesQ(p,q){
   if(!q)return true;
   const age=ageOf(p), y=normYear(p.birthYear);
-  const hay=[p.name,p.org,p.position,p.school,p.grad,p.lecture,p.phone,p.email,p.metWhere,p.notes,(p.tags||[]).join(" "),
+  const hay=[p.name,p.org,p.position,p.school,p.grad,p.lecture,p.phone,p.email,p.metWhere,p.notes,p.address,p.account,(p.tags||[]).join(" "),
     (p.groups||[]).map(g=>GMAP[g]?.label).join(" "),
     y?(String(y).slice(2)+"년생 "+y):"", age!=null?("만"+age+"세 "+age+"세"):"",
     (p.logs||[]).map(l=>l.text).join(" ")].join(" ").toLowerCase();
@@ -474,6 +483,8 @@ function renderDetail(){
       ${fact("출신학교",esc([p.school,p.grad].filter(Boolean).join(" · ")))}
       ${fact("내 수업",esc(p.lecture||""))}
       ${fact("휴대폰",phone)}
+      ${p.address?`<dt>주소</dt><dd>${esc(p.address)}<span class="ddbtns"><button class="btn sm" type="button" data-copy="address">복사</button><a class="btn sm" href="https://map.naver.com/p/search/${encodeURIComponent(p.address)}" target="_blank" rel="noopener">지도</a></span></dd>`:""}
+      ${p.account?`<dt>계좌</dt><dd>${esc(p.account)}<span class="ddbtns"><button class="btn sm" type="button" data-copy="account">계좌 복사</button></span></dd>`:""}
       ${fact("이메일",mail)}
       ${fact("만난 계기",esc([p.metWhere,p.metDate].filter(Boolean).join(" · ")))}
       ${fact("태그",esc((p.tags||[]).join(", ")))}
@@ -581,7 +592,7 @@ function openForm(p){
   $("#formTitle").textContent=p?"정보 수정":"새 사람 등록";
   const F=$("#form"); F.reset(); $("#formErr").textContent="";
   const set=(n,v)=>{F.elements[n].value=v??""};
-  if(p){["name","birthYear","org","position","school","grad","lecture","phone","email","birthday","metWhere","metDate","notes"].forEach(k=>set(k,p[k]));
+  if(p){["name","birthYear","org","position","school","grad","lecture","phone","email","birthday","metWhere","metDate","notes","address","account"].forEach(k=>set(k,p[k]));
     set("tags",(p.tags||[]).join(", ")); $("#f_important").checked=!!p.important;}
   else if(GMAP[state.filter]){/* 현재 보고 있는 분류를 미리 체크 */}
   const sel=p?(p.groups||[]):(GMAP[state.filter]?[state.filter]:[]);
@@ -596,7 +607,8 @@ $("#form").addEventListener("submit",async e=>{
   e.preventDefault();
   const F=e.target, v=n=>F.elements[n].value.trim();
   if(!v("name")){$("#formErr").textContent="이름을 입력해 주세요.";$("#f_name").focus();return;}
-  if(v("birthYear")&&!normYear(v("birthYear"))){$("#formErr").textContent="출생연도는 1982 또는 82처럼 적어 주세요.";return;}
+  if(v("birthYear")&&!normYear(v("birthYear"))){$("#formErr").textContent="출생연도는 1982, 82, 1982-03-15처럼 적어 주세요.";return;}
+  const fdB=parseFullDate(v("birthYear")); if(fdB&&!v("birthday"))F.elements.birthday.value=fdB.md;
   if(v("birthday")&&!/^\d{1,2}[-./ ]\d{1,2}$/.test(v("birthday"))){$("#formErr").textContent="생일은 03-15처럼 월-일로 적어 주세요.";return;}
   const old=people.find(x=>x.id===state.editing);
   const now=new Date().toISOString();
@@ -604,7 +616,7 @@ $("#form").addEventListener("submit",async e=>{
   const p={...(old||{}),
     id:old?old.id:newId(),
     name:v("name"),birthYear:by||"",org:v("org"),position:v("position"),school:v("school"),grad:v("grad"),lecture:v("lecture"),
-    phone:v("phone"),email:v("email"),birthday:v("birthday").replace(/[./ ]/,"-"),metWhere:v("metWhere"),metDate:v("metDate"),notes:F.elements.notes.value.trim(),
+    phone:v("phone"),email:v("email"),address:v("address"),account:v("account"),birthday:v("birthday").replace(/[./ ]/,"-"),metWhere:v("metWhere"),metDate:v("metDate"),notes:F.elements.notes.value.trim(),
     tags:v("tags").split(/[,，]/).map(s=>s.trim()).filter(Boolean),
     groups:[...$("#f_groups").querySelectorAll("input:checked")].map(i=>i.value),
     important:$("#f_important").checked,
@@ -639,6 +651,9 @@ $("#list").addEventListener("change",e=>{
 $("#detail").addEventListener("click",async e=>{
   const p=people.find(x=>x.id===state.sel); if(!p)return;
   const id=e.target.id;
+  const cp=e.target.closest("[data-copy]");
+  if(cp){let t=p[cp.dataset.copy]||"";if(cp.dataset.copy==="account"){const m=t.match(/\d[\d-]{6,}\d/);if(m)t=m[0];}
+    try{await navigator.clipboard.writeText(t);toast(cp.dataset.copy==="account"?"계좌번호를 복사했습니다":"주소를 복사했습니다");}catch(_){toast("복사하지 못했습니다");}return;}
   if(e.target.closest("#zoomP")){$("#viewerImg").src=photos[p.id];$("#viewer").classList.add("open");return;}
   if(id==="closeD"){state.sel=null;render();}
   else if(id==="editP")openForm(p);
@@ -669,7 +684,7 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ---------- CSV ---------- */
-const COLS=[["name","이름"],["groups","분류"],["org","직장"],["position","직책"],["school","출신학교"],["grad","학번"],["birthYear","출생연도"],["phone","휴대폰"],["email","이메일"],["birthday","생일"],["metWhere","만난곳"],["metDate","만난날"],["lecture","수강"],["tags","태그"],["important","중요"],["notes","메모"],["logs","연락기록"]];
+const COLS=[["name","이름"],["groups","분류"],["org","직장"],["position","직책"],["school","출신학교"],["grad","학번"],["birthYear","출생연도"],["phone","휴대폰"],["email","이메일"],["address","주소"],["account","계좌번호"],["birthday","생일"],["metWhere","만난곳"],["metDate","만난날"],["lecture","수강"],["tags","태그"],["important","중요"],["notes","메모"],["logs","연락기록"]];
 function toCSV(){
   const q=s=>{s=String(s??"");return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const lines=[COLS.map(c=>c[1]).join(",")];
@@ -693,7 +708,7 @@ function parseCSV(t){
   if(f!==""||row.length){row.push(f);rows.push(row);}
   return rows.filter(r=>r.some(x=>x.trim()!==""));
 }
-const HEAD={"이름":"name","성명":"name","분류":"groups","구분":"groups","직장":"org","소속":"org","직책":"position","직급":"position","출신학교":"school","학교":"school","학번":"grad","졸업":"grad","출생연도":"birthYear","생년":"birthYear","휴대폰":"phone","전화":"phone","연락처":"phone","이메일":"email","생일":"birthday","만난곳":"metWhere","만난날":"metDate","수강":"lecture","태그":"tags","중요":"important","메모":"notes","비고":"notes"};
+const HEAD={"이름":"name","성명":"name","분류":"groups","구분":"groups","직장":"org","소속":"org","직책":"position","직급":"position","출신학교":"school","학교":"school","학번":"grad","졸업":"grad","출생연도":"birthYear","생년":"birthYear","휴대폰":"phone","주소":"address","집주소":"address","계좌번호":"account","계좌":"account","은행계좌":"account","전화":"phone","연락처":"phone","이메일":"email","생일":"birthday","만난곳":"metWhere","만난날":"metDate","수강":"lecture","태그":"tags","중요":"important","메모":"notes","비고":"notes"};
 const LBL2ID=Object.fromEntries(GROUPS.map(g=>[g.label,g.id]).concat([["제자","student"],["졸업생","student"],["학교","univ"],["교수","univ"],["협회","assoc"],["병원","hospital"],["직장","hospital"]]));
 $("#csvFile").addEventListener("change",async e=>{
   const file=e.target.files[0]; if(!file)return;
@@ -720,18 +735,37 @@ $("#csvFile").addEventListener("change",async e=>{
   for(const r of rows.slice(1)){
     const p={id:newId(),groups:[],tags:[],logs:[],createdAt:now,updatedAt:""};
     map.forEach((k,i)=>{if(!k)return;const v=(r[i]||"").trim();
-      if(k==="groups")p.groups=v.split(/[;,/]/).map(s=>LBL2ID[s.trim()]).filter(Boolean);
-      else if(k==="tags")p.tags=v.split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+      if(k==="groups"){const parts=v.split(/[;,/]/).map(s=>s.trim()).filter(Boolean);
+        p.groups=parts.map(s=>LBL2ID[s]).filter(Boolean);
+        const other=parts.filter(s=>!LBL2ID[s]); if(other.length)p.tags=[...new Set([...(p.tags||[]),...other])];}
+      else if(k==="tags")p.tags=[...new Set([...(p.tags||[]),...v.split(/[;,]/).map(s=>s.trim()).filter(Boolean)])];
       else if(k==="important")p.important=/^(y|yes|o|1|중요|★)$/i.test(v);
-      else if(k==="birthYear")p.birthYear=normYear(v)||"";
+      else if(k==="birthYear"){p.birthYear=normYear(v)||"";const fd=parseFullDate(v);if(fd)p._bd=fd.md;}
       else p[k]=v;});
+    if(p._bd){if(!p.birthday)p.birthday=p._bd;delete p._bd;}
     if(!p.name){skip++;continue;}
     added.push(p);
   }
-  const prev=people; people=people.concat(added);
+  const prev=people; const next=people.slice(); let newC=0,updC=0;
+  const digits=s=>String(s||"").replace(/\D/g,"");
+  for(const p of added){
+    const ph=digits(p.phone);
+    const i=next.findIndex(x=>x.name===p.name&&((ph&&digits(x.phone)===ph)||(!ph&&!digits(x.phone))||(ph&&!digits(x.phone)&&(x.org||"")===(p.org||""))));
+    if(i>=0){
+      const o={...next[i]};
+      for(const [k,val] of Object.entries(p)){
+        if(["id","createdAt","updatedAt","logs"].includes(k))continue;
+        if(k==="groups"||k==="tags"){o[k]=[...new Set([...(o[k]||[]),...(val||[])])];continue;}
+        if(k==="important"){if(val)o.important=true;continue;}
+        if(val!==""&&val!=null)o[k]=val;
+      }
+      o.updatedAt=new Date().toISOString(); next[i]=o; updC++;
+    }else{next.push(p);newC++;}
+  }
+  people=next;
   try{persist();}catch(err){people=prev;msg.textContent=errMsg(err);e.target.value="";return;}
   render();
-  msg.textContent=added.length+"명을 가져왔습니다."+(skip?" (이름이 비어 있는 "+skip+"줄은 건너뜀)":"");
+  msg.textContent=`가져왔습니다: 새로 ${newC}명`+(updC?`, 이미 있던 ${updC}명은 빈 칸을 채워 갱신`:"")+"."+(skip?" (이름이 비어 있는 "+skip+"줄은 건너뜀)":"");
   e.target.value="";
 });
 async function giveFile(name,content,mime){
